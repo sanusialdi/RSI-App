@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from PIL import Image
 import json
 import os
@@ -9,18 +9,21 @@ import streamlit.components.v1 as components
 # Config
 st.set_page_config(page_title="RSI System - Coach Aldi", layout="wide")
 
-# Mengambil API Key secara aman dari Secrets Streamlit atau Sidebar
-api_key = st.secrets.get("GEMINI_API_KEY", None)
+# Sidebar untuk Input API Key / Token
+st.sidebar.title("🔐 Pengaturan System")
+secrets_key = st.secrets.get("GEMINI_API_KEY", "")
+user_api_key = st.sidebar.text_input("Masukkan Key Google / Gemini (AQ / AIzaSy):", value=secrets_key, type="password")
 
-if not api_key:
-    api_key = st.sidebar.text_input("Masukkan Gemini API Key:", type="password")
-
-if api_key:
+client = None
+if user_api_key:
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Menggunakan SDK Google GenAI versi Fleksibel
+        client = genai.Client(api_key=user_api_key)
+        st.sidebar.success("Kunci Google Terhubung!")
     except Exception as e:
-        st.error(f"Gagal menghubungkan API Key: {str(e)}")
+        st.sidebar.error(f"Gagal menghubungkan Kunci: {str(e)}")
+else:
+    st.sidebar.warning("Harap masukkan Kunci Google Anda di sidebar.")
 
 # Safe JSON Loader & Saver
 def safe_load_json(filename, default_val):
@@ -97,8 +100,8 @@ with tabs[0]:
         foto_lidah = st.file_uploader("Upload Foto Lidah Pasien (Opsional):", type=["jpg", "png", "jpeg"])
 
     if st.button("🔮 Analisis Diagnosa & Formulasi TCM (AI)"):
-        if not api_key:
-            st.error("API Key belum terpasang. Harap isi di menu Settings/Sidebar Streamlit.")
+        if client is None:
+            st.error("Kunci Google belum terpasang. Masukkan Kunci Anda di sidebar sebelah kiri.")
         elif not nama or not keluhan_utama:
             st.warning("Harap isi Nama Pasien dan Keluhan Utama terlebih dahulu.")
         else:
@@ -127,7 +130,10 @@ with tabs[0]:
                     if foto_lidah is not None:
                         contents.append(Image.open(foto_lidah))
                     
-                    response = model.generate_content(contents)
+                    response = client.models.generate_content(
+                        model='gemini-1.5-flash',
+                        contents=contents
+                    )
                     ai_result = response.text
                     
                     st.session_state.current_patient = nama
@@ -165,7 +171,6 @@ with tabs[1]:
         st.subheader("Kalkulasi Biaya & Harga Jual:")
         st.metric("Total HPP Herbal", f"Rp {total_hpp:,.0f}")
         
-        # Markup 250% (HPP * 3.5) dikonversi murni ke integer (bilangan bulat)
         harga_jual_herbal = int(total_hpp * 3.5)
         st.metric("Harga Jual Herbal (Markup 250%)", f"Rp {harga_jual_herbal:,.0f}")
         
@@ -183,7 +188,6 @@ with tabs[2]:
         patient_name = st.text_input("Nama Pasien / Klien:", value=st.session_state.current_patient)
         biaya_jasa = st.number_input("Biaya Jasa Konsultasi / Akupuntur (Rp):", value=100000, step=10000)
         
-        # Tipe data dipastikan integer murni agar tidak menimbulkan StreamlitMixedNumericTypesError
         herbal_price_int = int(st.session_state.calculated_herbal_price)
         biaya_herbal = st.number_input("Biaya Racikan Herbal (Rp):", value=herbal_price_int, step=5000)
         
@@ -260,7 +264,9 @@ with tabs[3]:
     st.header("4. Laporan Keuangan Standar Akuntansi (.txt)")
     
     if st.button("📈 Susun Laporan Keuangan Akuntansi"):
-        if not st.session_state.transactions_db:
+        if client is None:
+            st.error("Kunci Google belum valid. Harap isi di sidebar terlebih dahulu.")
+        elif not st.session_state.transactions_db:
             st.warning("Belum ada data transaksi tersimpan.")
         else:
             with st.spinner("AI menyusun Laporan Jurnal & Laba Rugi..."):
@@ -279,12 +285,15 @@ with tabs[3]:
                     4. CATATAN MANAJEMEN KEUANGAN KLINIK.
                     """
                     
-                    response_acc = model.generate_content([prompt_acc])
+                    response_acc = client.models.generate_content(
+                        model='gemini-1.5-flash',
+                        contents=[prompt_acc]
+                    )
                     report_acc_text = response_acc.text
                     
                     st.text_area("Pratinjau Laporan Keuangan (.txt):", report_acc_text, height=300)
                     
-                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
                     st.download_button(
                         label="📄 Download Laporan Keuangan (.txt)",
                         data=report_acc_text,
