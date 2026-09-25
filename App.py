@@ -39,7 +39,7 @@ def safe_save_json(filename, data):
     except Exception:
         pass
 
-# Session State
+# Session State Initialization
 if "patients_db" not in st.session_state:
     st.session_state.patients_db = safe_load_json("database_pasien.json", [])
 
@@ -58,7 +58,7 @@ if "transactions_db" not in st.session_state:
     st.session_state.transactions_db = safe_load_json("database_transaksi.json", [])
 
 if "calculated_herbal_price" not in st.session_state:
-    st.session_state.calculated_herbal_price = 0.0
+    st.session_state.calculated_herbal_price = 0
 
 if "current_patient" not in st.session_state:
     st.session_state.current_patient = "Klien Umum"
@@ -77,7 +77,9 @@ tabs = st.tabs([
     "📊 Laporan Keuangan (.txt)"
 ])
 
+# ---------------------------------------------------------
 # TAB 1: DIAGNOSA & REKAM MEDIS
+# ---------------------------------------------------------
 with tabs[0]:
     st.header("1. Data Pasien & Empat Pemeriksaan (Si Zhen)")
     col1, col2 = st.columns(2)
@@ -140,12 +142,14 @@ with tabs[0]:
                 except Exception as e:
                     st.error(f"Gagal memproses AI: {str(e)}")
 
-# TAB 2: STOK & KALKULASI MARAKUP 250%
+# ---------------------------------------------------------
+# TAB 2: STOK & KALKULASI MARKUP 250%
+# ---------------------------------------------------------
 with tabs[1]:
     st.header("2. Management Stok & Kalkulator Herbal (Markup 250%)")
     
     selected_items = []
-    total_hpp = 0.0
+    total_hpp = 0
     
     col_inv1, col_inv2 = st.columns(2)
     with col_inv1:
@@ -153,7 +157,7 @@ with tabs[1]:
         for idx, item in enumerate(st.session_state.inventory_db):
             qty = st.number_input(f"Jumlah {item['nama']} (gram):", min_value=0, max_value=int(item['stok']), value=0, key=f"inv_input_{idx}")
             if qty > 0:
-                sub_hpp = qty * item['hpp']
+                sub_hpp = int(qty * item['hpp'])
                 total_hpp += sub_hpp
                 selected_items.append({"nama": item['nama'], "qty": qty, "hpp": item['hpp'], "sub_hpp": sub_hpp})
     
@@ -161,13 +165,16 @@ with tabs[1]:
         st.subheader("Kalkulasi Biaya & Harga Jual:")
         st.metric("Total HPP Herbal", f"Rp {total_hpp:,.0f}")
         
-        harga_jual_herbal = total_hpp * 3.5
+        # Markup 250% (HPP * 3.5) dikonversi murni ke integer (bilangan bulat)
+        harga_jual_herbal = int(total_hpp * 3.5)
         st.metric("Harga Jual Herbal (Markup 250%)", f"Rp {harga_jual_herbal:,.0f}")
         
         st.session_state.calculated_herbal_price = harga_jual_herbal
         st.session_state.selected_herbal_items = selected_items
 
+# ---------------------------------------------------------
 # TAB 3: KASIR & STRUK
+# ---------------------------------------------------------
 with tabs[2]:
     st.header("3. Kasir & Pembayaran Struk Thermal Bluetooth")
     
@@ -175,8 +182,12 @@ with tabs[2]:
     with col_k1:
         patient_name = st.text_input("Nama Pasien / Klien:", value=st.session_state.current_patient)
         biaya_jasa = st.number_input("Biaya Jasa Konsultasi / Akupuntur (Rp):", value=100000, step=10000)
-        biaya_herbal = st.number_input("Biaya Racikan Herbal (Rp):", value=float(st.session_state.calculated_herbal_price), step=5000)
-        total_transaksi = biaya_jasa + biaya_herbal
+        
+        # Tipe data dipastikan integer murni agar tidak menimbulkan StreamlitMixedNumericTypesError
+        herbal_price_int = int(st.session_state.calculated_herbal_price)
+        biaya_herbal = st.number_input("Biaya Racikan Herbal (Rp):", value=herbal_price_int, step=5000)
+        
+        total_transaksi = int(biaya_jasa + biaya_herbal)
         
         st.write(f"### Total Tagihan: **Rp {total_transaksi:,.0f}**")
         
@@ -242,7 +253,9 @@ with tabs[2]:
         """
         components.html(print_script, height=90)
 
+# ---------------------------------------------------------
 # TAB 4: AKUNTANSI
+# ---------------------------------------------------------
 with tabs[3]:
     st.header("4. Laporan Keuangan Standar Akuntansi (.txt)")
     
