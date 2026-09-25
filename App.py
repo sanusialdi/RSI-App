@@ -11,7 +11,6 @@ st.set_page_config(page_title="RSI System - Coach Aldi", layout="wide")
 # Sidebar Pengaturan Key
 st.sidebar.title("🔐 Pengaturan System")
 
-# Ambil dari Secrets jika ada, atau dari Input Text
 secrets_key = st.secrets.get("GROQ_API_KEY", "")
 user_api_key = st.sidebar.text_input("Groq API Key (gsk_...):", value=secrets_key, type="password")
 
@@ -21,11 +20,36 @@ clean_key = user_api_key.strip() if user_api_key else ""
 if clean_key:
     try:
         client = Groq(api_key=clean_key)
-        st.sidebar.success("✅ Format Key Terdeteksi")
+        st.sidebar.success("✅ API Key Terhubung")
     except Exception as e:
         st.sidebar.error(f"Gagal Inisialisasi: {str(e)}")
 else:
-    st.sidebar.warning("Masukkan Groq API Key (gsk_...) di atas.")
+    st.sidebar.warning("Masukkan Groq API Key di atas.")
+
+# Fungsi Panggilan AI dengan Multi-Model Fallback
+def query_groq_ai(client_obj, prompt_text):
+    # Urutan kandidat model aktif di Groq saat ini
+    candidate_models = [
+        "llama-3.3-70b-versatile",
+        "llama3-70b-8192",
+        "llama-3.1-70b-versatile",
+        "mixtral-8x7b-32768",
+        "llama3-8b-8192"
+    ]
+    
+    last_error = None
+    for model_name in candidate_models:
+        try:
+            response = client_obj.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt_text}]
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            last_error = e
+            continue
+            
+    raise Exception(f"Semua model gagal diakses. Error terakhir: {str(last_error)}")
 
 # Safe JSON Loader & Saver
 DB_PATIENTS = "database_pasien.json"
@@ -77,7 +101,7 @@ if "selected_herbal_items" not in st.session_state:
 
 # Header Utama
 st.title("🏥 System Operasional Klinik RSI (Rumah Sehat Insani)")
-st.caption("Aplikasi Rekam Medis, Diagnosa TCM (DeepSeek / Llama AI), Stok Herbal, Kasir & Akuntansi")
+st.caption("Aplikasi Rekam Medis, Diagnosa TCM (AI), Stok Herbal, Kasir & Akuntansi")
 
 tabs = st.tabs([
     "📋 Data Pasien & Diagnosa TCM", 
@@ -106,7 +130,7 @@ with tabs[0]:
 
     if st.button("🔮 Analisis Diagnosa & Formulasi TCM (AI)"):
         if not client or not clean_key:
-            st.error("Masukkan Groq API Key yang aktif di sidebar sebelah kiri terlebih dahulu.")
+            st.error("Masukkan Groq API Key di sidebar sebelah kiri terlebih dahulu.")
         elif not nama or not keluhan_utama:
             st.warning("Harap isi Nama Pasien dan Keluhan Utama terlebih dahulu.")
         else:
@@ -131,11 +155,7 @@ with tabs[0]:
                     6. FORMULA HERBAL SESUAI STOK TERSEDIA (Pilih dari daftar stok herbal lokal di atas beserta takaran gramnya).
                     """
                     
-                    response = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[{"role": "user", "content": prompt}]
-                    )
-                    ai_result = response.choices[0].message.content
+                    ai_result = query_groq_ai(client, prompt)
                     
                     st.session_state.current_patient = nama
                     st.session_state.patients_db.append({
@@ -286,11 +306,7 @@ with tabs[3]:
                     4. CATATAN MANAJEMEN KEUANGAN KLINIK.
                     """
                     
-                    response_acc = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[{"role": "user", "content": prompt_acc}]
-                    )
-                    report_acc_text = response_acc.choices[0].message.content
+                    report_acc_text = query_groq_ai(client, prompt_acc)
                     
                     st.text_area("Pratinjau Laporan Keuangan (.txt):", report_acc_text, height=300)
                     
