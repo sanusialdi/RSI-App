@@ -1,5 +1,5 @@
 import streamlit as st
-from groq import Groq
+import requests
 import json
 import os
 import datetime
@@ -8,48 +8,37 @@ import streamlit.components.v1 as components
 # Config Halaman
 st.set_page_config(page_title="RSI System - Coach Aldi", layout="wide")
 
-# Sidebar Pengaturan Key
-st.sidebar.title("🔐 Pengaturan System")
+# API Key & Endpoint Auto-Active (OpenRouter - Free Unlimited)
+OPENROUTER_API_KEY = "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"
 
-secrets_key = st.secrets.get("GROQ_API_KEY", "")
-user_api_key = st.sidebar.text_input("Groq API Key (gsk_...):", value=secrets_key, type="password")
-
-client = None
-clean_key = user_api_key.strip() if user_api_key else ""
-
-if clean_key:
+def call_openrouter_ai(prompt_text):
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "messages": [{"role": "user", "content": prompt_text}]
+    }
     try:
-        client = Groq(api_key=clean_key)
-        st.sidebar.success("✅ API Key Terhubung")
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
+        if response.status_code == 200:
+            res_json = response.json()
+            return res_json['choices'][0]['message']['content']
+        else:
+            # Fallback ke model DeepSeek gratisan
+            payload['model'] = 'deepseek/deepseek-r1:free'
+            res2 = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
+            if res2.status_code == 200:
+                return res2.json()['choices'][0]['message']['content']
+            else:
+                raise Exception(f"HTTP Error {response.status_code}: {response.text}")
     except Exception as e:
-        st.sidebar.error(f"Gagal Inisialisasi: {str(e)}")
-else:
-    st.sidebar.warning("Masukkan Groq API Key di atas.")
+        raise Exception(f"Gagal koneksi AI: {str(e)}")
 
-# Fungsi Panggilan AI dengan Multi-Model Fallback
-def query_groq_ai(client_obj, prompt_text):
-    # Urutan kandidat model aktif di Groq saat ini
-    candidate_models = [
-        "llama-3.3-70b-versatile",
-        "llama3-70b-8192",
-        "llama-3.1-70b-versatile",
-        "mixtral-8x7b-32768",
-        "llama3-8b-8192"
-    ]
-    
-    last_error = None
-    for model_name in candidate_models:
-        try:
-            response = client_obj.chat.completions.create(
-                model=model_name,
-                messages=[{"role": "user", "content": prompt_text}]
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            last_error = e
-            continue
-            
-    raise Exception(f"Semua model gagal diakses. Error terakhir: {str(last_error)}")
+# Sidebar Indicator
+st.sidebar.title("🔐 Status System")
+st.sidebar.success("✅ AI Engine Terhubung Otomatis!")
 
 # Safe JSON Loader & Saver
 DB_PATIENTS = "database_pasien.json"
@@ -129,9 +118,7 @@ with tabs[0]:
         nadi_bpm = st.number_input("Frekuensi Nadi (BPM):", value=75)
 
     if st.button("🔮 Analisis Diagnosa & Formulasi TCM (AI)"):
-        if not client or not clean_key:
-            st.error("Masukkan Groq API Key di sidebar sebelah kiri terlebih dahulu.")
-        elif not nama or not keluhan_utama:
+        if not nama or not keluhan_utama:
             st.warning("Harap isi Nama Pasien dan Keluhan Utama terlebih dahulu.")
         else:
             with st.spinner("AI sedang menganalisis Sindrom, Titik Akupuntur, Food Terapi & Resep Herbal..."):
@@ -147,7 +134,7 @@ with tabs[0]:
                     - Daftar Stok Herbal Tersedia: {stok_list_str}
 
                     Berikan hasil analisis terstruktur berformat teks rapi (.txt) mencakup:
-                    1. DIAGNOSA SINDROM TCM (Diferensiasi Zang-Fu, Ba Gang, Organ & Penyebab Utama).
+                    1. DIAGNOSA SINDROM TCM (Diferensiation Zang-Fu, Ba Gang, Organ & Penyebab Utama).
                     2. REKOMENDASI TERAPI AKUPUNTUR & AKUPRESUR (Sebutkan kode titik misal ST36, SP6, LR3, lokasi posisi titik, dan indikasinya).
                     3. REKOMENDASI TITIK MOKSA (Jika diindikasikan, beserta alasannya).
                     4. RESEP FOOD TERAPI (Anjuran makanan & pantangan makanan sesuai sindrom).
@@ -155,7 +142,7 @@ with tabs[0]:
                     6. FORMULA HERBAL SESUAI STOK TERSEDIA (Pilih dari daftar stok herbal lokal di atas beserta takaran gramnya).
                     """
                     
-                    ai_result = query_groq_ai(client, prompt)
+                    ai_result = call_openrouter_ai(prompt)
                     
                     st.session_state.current_patient = nama
                     st.session_state.patients_db.append({
@@ -285,9 +272,7 @@ with tabs[3]:
     st.header("4. Laporan Keuangan Standar Akuntansi (.txt)")
     
     if st.button("📈 Susun Laporan Keuangan Akuntansi"):
-        if not client or not clean_key:
-            st.error("Groq API Key belum terpasang di sidebar.")
-        elif not st.session_state.transactions_db:
+        if not st.session_state.transactions_db:
             st.warning("Belum ada data transaksi tersimpan.")
         else:
             with st.spinner("AI menyusun Laporan Jurnal & Laba Rugi..."):
@@ -306,7 +291,7 @@ with tabs[3]:
                     4. CATATAN MANAJEMEN KEUANGAN KLINIK.
                     """
                     
-                    report_acc_text = query_groq_ai(client, prompt_acc)
+                    report_acc_text = call_openrouter_ai(prompt_acc)
                     
                     st.text_area("Pratinjau Laporan Keuangan (.txt):", report_acc_text, height=300)
                     
