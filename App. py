@@ -6,19 +6,12 @@ import os
 import datetime
 import streamlit.components.v1 as components
 
-# ---------------------------------------------------------
-# KONFIGURASI HALAMAN & API KEY GEMINI
-# ---------------------------------------------------------
 st.set_page_config(page_title="RSI Holistic System - Coach Aldi", layout="wide")
 
-# API Key Gemini Coach Aldi
 API_KEY_RSI = "AQ.Ab8RN6IXMnvIVSDSNPntNcbDvDdL7NFnK7iPyx1Bcpxc0DbcCg"
 genai.configure(api_key=API_KEY_RSI)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# ---------------------------------------------------------
-# DATABASE LOKAL / SESSION (Stateless & File JSON)
-# ---------------------------------------------------------
 DB_PATIENTS = "database_pasien.json"
 DB_INVENTORY = "database_stok.json"
 DB_TRANSACTIONS = "database_transaksi.json"
@@ -47,7 +40,6 @@ inventory_db = load_data(DB_INVENTORY, [
 ])
 transactions_db = load_data(DB_TRANSACTIONS, [])
 
-# Header Utama
 st.title("🏥 System Operasional Klinik RSI (Rumah Sehat Insani)")
 st.caption("Aplikasi Rekam Medis, Diagnosa TCM (AI), Stok Herbal, Kasir & Akuntansi")
 
@@ -58,9 +50,6 @@ tabs = st.tabs([
     "📊 Laporan Keuangan (.txt)"
 ])
 
-# ---------------------------------------------------------
-# TAB 1: DATA PASIEN & DIAGNOSA TCM (AI)
-# ---------------------------------------------------------
 with tabs[0]:
     st.header("1. Data Pasien & Empat Pemeriksaan (Si Zhen)")
     col1, col2 = st.columns(2)
@@ -70,7 +59,7 @@ with tabs[0]:
         usia = st.number_input("Usia (Tahun):", min_value=1, max_value=120, value=35)
         gender = st.selectbox("Jenis Kelamin:", ["Laki-laki", "Perempuan"])
         keluhan_utama = st.text_area("Keluhan Utama & Hasil Pemeriksaan (Wang, Wen, Wen, Qie):", 
-                                     placeholder="Contoh: Sakit kepala berdenyut, leher kaku, lidah merah selaput kuning, nadi cepat. Sensasi dingin di kaki...")
+                                     placeholder="Contoh: Sakit kepala berdenyut, leher kaku, lidah merah selaput kuning, nadi cepat...")
         
     with col2:
         td = st.text_input("Tekanan Darah (S/D):", "120/80")
@@ -111,7 +100,6 @@ with tabs[0]:
                 st.session_state['current_diagnosis'] = ai_result
                 st.session_state['current_patient'] = nama
                 
-                # Simpan ke DB Pasien
                 patients_db.append({
                     "tanggal": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "nama": nama, "usia": usia, "keluhan": keluhan_utama, "diagnosa_ai": ai_result
@@ -121,9 +109,6 @@ with tabs[0]:
                 st.success("Analisis AI Berhasil Disimpan!")
                 st.text_area("Hasil Analisis Complete (TCM & Terapi):", ai_result, height=400)
 
-# ---------------------------------------------------------
-# TAB 2: KALKULASI HPP & HARGA JUAL HERBAL (UP 250%)
-# ---------------------------------------------------------
 with tabs[1]:
     st.header("2. Management Stok & Kalkulator Herbal (Markup 250%)")
     
@@ -144,16 +129,12 @@ with tabs[1]:
         st.subheader("Kalkulasi Biaya & Harga Jual:")
         st.metric("Total HPP Herbal", f"Rp {total_hpp:,.0f}")
         
-        # Harga Jual Up 250% dari HPP (HPP * 3.5)
         harga_jual_herbal = total_hpp * 3.5
         st.metric("Harga Jual Herbal (Markup 250%)", f"Rp {harga_jual_herbal:,.0f}")
         
         st.session_state['calculated_herbal_price'] = harga_jual_herbal
         st.session_state['selected_herbal_items'] = selected_items
 
-# ---------------------------------------------------------
-# TAB 3: KASIR & CETAK STRUK BLUETOOTH
-# ---------------------------------------------------------
 with tabs[2]:
     st.header("3. Kasir & Pembayaran Struk Thermal Bluetooth")
     
@@ -167,7 +148,6 @@ with tabs[2]:
         st.write(f"### Total Tagihan: **Rp {total_transaksi:,.0f}**")
         
         if st.button("Simpan Transaksi & Potong Stok"):
-            # Potong stok herbal
             selected_herbs = st.session_state.get('selected_herbal_items', [])
             for s_item in selected_herbs:
                 for inv_item in inventory_db:
@@ -175,7 +155,6 @@ with tabs[2]:
                         inv_item['stok'] -= s_item['qty']
             save_data(DB_INVENTORY, inventory_db)
             
-            # Simpan log transaksi
             trans_record = {
                 "tgl": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "pasien": patient_name,
@@ -231,9 +210,6 @@ with tabs[2]:
         """
         components.html(print_script, height=100)
 
-# ---------------------------------------------------------
-# TAB 4: LAPORAN KEUANGAN AKUNTANSI (.TXT)
-# ---------------------------------------------------------
 with tabs[3]:
     st.header("4. Laporan Keuangan Standar Akuntansi (.txt)")
     
