@@ -132,7 +132,7 @@ with tabs[0]:
                     """
                     
                     response = client.chat.completions.create(
-                        model="llama3-70b-8192",
+                        model="llama-3.3-70b-versatile",
                         messages=[{"role": "user", "content": prompt}]
                     )
                     ai_result = response.choices[0].message.content
@@ -287,7 +287,7 @@ with tabs[3]:
                     """
                     
                     response_acc = client.chat.completions.create(
-                        model="llama3-70b-8192",
+                        model="llama-3.3-70b-versatile",
                         messages=[{"role": "user", "content": prompt_acc}]
                     )
                     report_acc_text = response_acc.choices[0].message.content
