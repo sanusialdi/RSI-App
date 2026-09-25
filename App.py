@@ -1,5 +1,5 @@
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 from PIL import Image
 import json
 import os
@@ -9,21 +9,23 @@ import streamlit.components.v1 as components
 # Config
 st.set_page_config(page_title="RSI System - Coach Aldi", layout="wide")
 
-# Sidebar untuk Input API Key / Token
+# Sidebar Pengaturan Key
 st.sidebar.title("🔐 Pengaturan System")
 secrets_key = st.secrets.get("GEMINI_API_KEY", "")
-user_api_key = st.sidebar.text_input("Masukkan Key Google / Gemini (AQ / AIzaSy):", value=secrets_key, type="password")
+user_api_key = st.sidebar.text_input("Masukkan Gemini API Key:", value=secrets_key, type="password")
 
-client = None
+model = None
 if user_api_key:
     try:
-        # Menggunakan SDK Google GenAI versi Fleksibel
-        client = genai.Client(api_key=user_api_key)
-        st.sidebar.success("Kunci Google Terhubung!")
+        # Menghapus spasi tersembunyi jika ada saat copy-paste
+        clean_key = user_api_key.strip()
+        genai.configure(api_key=clean_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        st.sidebar.success("API Key Terhubung!")
     except Exception as e:
-        st.sidebar.error(f"Gagal menghubungkan Kunci: {str(e)}")
+        st.sidebar.error(f"Gagal menghubungkan Key: {str(e)}")
 else:
-    st.sidebar.warning("Harap masukkan Kunci Google Anda di sidebar.")
+    st.sidebar.warning("Harap masukkan Gemini API Key di sidebar.")
 
 # Safe JSON Loader & Saver
 def safe_load_json(filename, default_val):
@@ -100,8 +102,8 @@ with tabs[0]:
         foto_lidah = st.file_uploader("Upload Foto Lidah Pasien (Opsional):", type=["jpg", "png", "jpeg"])
 
     if st.button("🔮 Analisis Diagnosa & Formulasi TCM (AI)"):
-        if client is None:
-            st.error("Kunci Google belum terpasang. Masukkan Kunci Anda di sidebar sebelah kiri.")
+        if model is None:
+            st.error("API Key belum terhubung. Masukkan API Key di sidebar sebelah kiri.")
         elif not nama or not keluhan_utama:
             st.warning("Harap isi Nama Pasien dan Keluhan Utama terlebih dahulu.")
         else:
@@ -130,10 +132,7 @@ with tabs[0]:
                     if foto_lidah is not None:
                         contents.append(Image.open(foto_lidah))
                     
-                    response = client.models.generate_content(
-                        model='gemini-1.5-flash',
-                        contents=contents
-                    )
+                    response = model.generate_content(contents)
                     ai_result = response.text
                     
                     st.session_state.current_patient = nama
@@ -264,8 +263,8 @@ with tabs[3]:
     st.header("4. Laporan Keuangan Standar Akuntansi (.txt)")
     
     if st.button("📈 Susun Laporan Keuangan Akuntansi"):
-        if client is None:
-            st.error("Kunci Google belum valid. Harap isi di sidebar terlebih dahulu.")
+        if model is None:
+            st.error("API Key belum valid. Harap isi di sidebar terlebih dahulu.")
         elif not st.session_state.transactions_db:
             st.warning("Belum ada data transaksi tersimpan.")
         else:
@@ -285,10 +284,7 @@ with tabs[3]:
                     4. CATATAN MANAJEMEN KEUANGAN KLINIK.
                     """
                     
-                    response_acc = client.models.generate_content(
-                        model='gemini-1.5-flash',
-                        contents=[prompt_acc]
-                    )
+                    response_acc = model.generate_content([prompt_acc])
                     report_acc_text = response_acc.text
                     
                     st.text_area("Pratinjau Laporan Keuangan (.txt):", report_acc_text, height=300)
