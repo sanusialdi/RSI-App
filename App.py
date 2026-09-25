@@ -8,16 +8,24 @@ import streamlit.components.v1 as components
 # Config Halaman
 st.set_page_config(page_title="RSI System - Coach Aldi", layout="wide")
 
-# API Key Groq Coach Aldi (Hardcoded Auto-Connect)
-GROQ_API_KEY = "gsk_ayVcA9AXSLXnizzBizh0WGdyb3FYTHZlVGNoij4UqD486PXP"
+# Sidebar Pengaturan Key
+st.sidebar.title("🔐 Pengaturan System")
 
-# Inisialisasi Groq Client
+# Ambil dari Secrets jika ada, atau dari Input Text
+secrets_key = st.secrets.get("GROQ_API_KEY", "")
+user_api_key = st.sidebar.text_input("Groq API Key (gsk_...):", value=secrets_key, type="password")
+
 client = None
-try:
-    client = Groq(api_key=GROQ_API_KEY)
-    st.sidebar.success("✅ DeepSeek AI Terhubung Otomatis!")
-except Exception as e:
-    st.sidebar.error(f"Gagal koneksi AI: {str(e)}")
+clean_key = user_api_key.strip() if user_api_key else ""
+
+if clean_key:
+    try:
+        client = Groq(api_key=clean_key)
+        st.sidebar.success("✅ Format Key Terdeteksi")
+    except Exception as e:
+        st.sidebar.error(f"Gagal Inisialisasi: {str(e)}")
+else:
+    st.sidebar.warning("Masukkan Groq API Key (gsk_...) di atas.")
 
 # Safe JSON Loader & Saver
 DB_PATIENTS = "database_pasien.json"
@@ -69,7 +77,7 @@ if "selected_herbal_items" not in st.session_state:
 
 # Header Utama
 st.title("🏥 System Operasional Klinik RSI (Rumah Sehat Insani)")
-st.caption("Aplikasi Rekam Medis, Diagnosa TCM (DeepSeek AI), Stok Herbal, Kasir & Akuntansi")
+st.caption("Aplikasi Rekam Medis, Diagnosa TCM (DeepSeek / Llama AI), Stok Herbal, Kasir & Akuntansi")
 
 tabs = st.tabs([
     "📋 Data Pasien & Diagnosa TCM", 
@@ -96,13 +104,13 @@ with tabs[0]:
         td = st.text_input("Tekanan Darah (S/D):", "120/80")
         nadi_bpm = st.number_input("Frekuensi Nadi (BPM):", value=75)
 
-    if st.button("🔮 Analisis Diagnosa & Formulasi TCM (DeepSeek AI)"):
-        if not client:
-            st.error("Koneksi AI terputus. Harap periksa kembali kuncinya.")
+    if st.button("🔮 Analisis Diagnosa & Formulasi TCM (AI)"):
+        if not client or not clean_key:
+            st.error("Masukkan Groq API Key yang aktif di sidebar sebelah kiri terlebih dahulu.")
         elif not nama or not keluhan_utama:
             st.warning("Harap isi Nama Pasien dan Keluhan Utama terlebih dahulu.")
         else:
-            with st.spinner("DeepSeek AI sedang menganalisis Sindrom, Titik Akupuntur, Food Terapi & Resep Herbal..."):
+            with st.spinner("AI sedang menganalisis Sindrom, Titik Akupuntur, Food Terapi & Resep Herbal..."):
                 try:
                     stok_list_str = ", ".join([f"{item['nama']} (Stok: {item['stok']}g, HPP: Rp{item['hpp']}/g)" for item in st.session_state.inventory_db])
 
@@ -139,7 +147,7 @@ with tabs[0]:
                     st.success("✅ Analisis AI Berhasil Disimpan!")
                     st.text_area("Hasil Analisis Complete (TCM & Terapi):", ai_result, height=350)
                 except Exception as e:
-                    st.error(f"Gagal memproses AI: {str(e)}")
+                    st.error(f"Gagal memproses AI: {str(e)}. Pastikan API Key di sidebar sudah benar dan tidak terhapus di console.groq.com.")
 
 # ---------------------------------------------------------
 # TAB 2: STOK & KALKULATOR MARKUP 250%
@@ -257,12 +265,12 @@ with tabs[3]:
     st.header("4. Laporan Keuangan Standar Akuntansi (.txt)")
     
     if st.button("📈 Susun Laporan Keuangan Akuntansi"):
-        if not client:
-            st.error("Groq API Key belum terpasang.")
+        if not client or not clean_key:
+            st.error("Groq API Key belum terpasang di sidebar.")
         elif not st.session_state.transactions_db:
             st.warning("Belum ada data transaksi tersimpan.")
         else:
-            with st.spinner("DeepSeek AI menyusun Laporan Jurnal & Laba Rugi..."):
+            with st.spinner("AI menyusun Laporan Jurnal & Laba Rugi..."):
                 try:
                     trans_summary = json.dumps(st.session_state.transactions_db, indent=2)
                     
