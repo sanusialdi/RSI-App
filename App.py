@@ -132,7 +132,7 @@ with tabs[0]:
                     """
                     
                     response = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
+                        model="llama3-70b-8192",
                         messages=[{"role": "user", "content": prompt}]
                     )
                     ai_result = response.choices[0].message.content
@@ -147,7 +147,7 @@ with tabs[0]:
                     st.success("✅ Analisis AI Berhasil Disimpan!")
                     st.text_area("Hasil Analisis Complete (TCM & Terapi):", ai_result, height=350)
                 except Exception as e:
-                    st.error(f"Gagal memproses AI: {str(e)}. Pastikan API Key di sidebar sudah benar dan tidak terhapus di console.groq.com.")
+                    st.error(f"Gagal memproses AI: {str(e)}")
 
 # ---------------------------------------------------------
 # TAB 2: STOK & KALKULATOR MARKUP 250%
@@ -287,7 +287,7 @@ with tabs[3]:
                     """
                     
                     response_acc = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
+                        model="llama3-70b-8192",
                         messages=[{"role": "user", "content": prompt_acc}]
                     )
                     report_acc_text = response_acc.choices[0].message.content
