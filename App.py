@@ -1,6 +1,5 @@
 import streamlit as st
-from google import genai
-from PIL import Image
+from groq import Groq
 import json
 import os
 import datetime
@@ -9,25 +8,22 @@ import streamlit.components.v1 as components
 # Config Halaman
 st.set_page_config(page_title="RSI System - Coach Aldi", layout="wide")
 
-# Sidebar Pengaturan Key
-st.sidebar.title("🔐 Pengaturan System")
-secrets_key = st.secrets.get("GEMINI_API_KEY", "")
-user_api_key = st.sidebar.text_input("Masukkan Kunci Google (AQ... / AIzaSy...):", value=secrets_key, type="password")
+# API Key Groq Coach Aldi (Hardcoded Auto-Connect)
+GROQ_API_KEY = "gsk_ayVcA9AXSLXnizzBizh0WGdyb3FYTHZlVGNoij4UqD486PXP"
 
+# Inisialisasi Groq Client
 client = None
-clean_key = user_api_key.strip() if user_api_key else ""
-
-if clean_key:
-    try:
-        # Client GenAI resmi mendukung berbagai format kunci Google
-        client = genai.Client(api_key=clean_key)
-        st.sidebar.success("✅ Kunci Google Terhubung!")
-    except Exception as e:
-        st.sidebar.error(f"Gagal menghubungkan Kunci: {str(e)}")
-else:
-    st.sidebar.warning("Harap masukkan Kunci Google Anda di sidebar.")
+try:
+    client = Groq(api_key=GROQ_API_KEY)
+    st.sidebar.success("✅ DeepSeek AI Terhubung Otomatis!")
+except Exception as e:
+    st.sidebar.error(f"Gagal koneksi AI: {str(e)}")
 
 # Safe JSON Loader & Saver
+DB_PATIENTS = "database_pasien.json"
+DB_INVENTORY = "database_stok.json"
+DB_TRANSACTIONS = "database_transaksi.json"
+
 def safe_load_json(filename, default_val):
     if os.path.exists(filename):
         try:
@@ -46,7 +42,7 @@ def safe_save_json(filename, data):
 
 # Session State Initialization
 if "patients_db" not in st.session_state:
-    st.session_state.patients_db = safe_load_json("database_pasien.json", [])
+    st.session_state.patients_db = safe_load_json(DB_PATIENTS, [])
 
 if "inventory_db" not in st.session_state:
     default_inv = [
@@ -57,10 +53,10 @@ if "inventory_db" not in st.session_state:
         {"nama": "Bangle (gram)", "hpp": 180, "stok": 1500},
         {"nama": "Cengkih (gram)", "hpp": 300, "stok": 1000}
     ]
-    st.session_state.inventory_db = safe_load_json("database_stok.json", default_inv)
+    st.session_state.inventory_db = safe_load_json(DB_INVENTORY, default_inv)
 
 if "transactions_db" not in st.session_state:
-    st.session_state.transactions_db = safe_load_json("database_transaksi.json", [])
+    st.session_state.transactions_db = safe_load_json(DB_TRANSACTIONS, [])
 
 if "calculated_herbal_price" not in st.session_state:
     st.session_state.calculated_herbal_price = 0
@@ -71,9 +67,9 @@ if "current_patient" not in st.session_state:
 if "selected_herbal_items" not in st.session_state:
     st.session_state.selected_herbal_items = []
 
-# Tampilan Header
+# Header Utama
 st.title("🏥 System Operasional Klinik RSI (Rumah Sehat Insani)")
-st.caption("Aplikasi Rekam Medis, Diagnosa TCM (AI), Stok Herbal, Kasir & Akuntansi")
+st.caption("Aplikasi Rekam Medis, Diagnosa TCM (DeepSeek AI), Stok Herbal, Kasir & Akuntansi")
 
 tabs = st.tabs([
     "📋 Data Pasien & Diagnosa TCM", 
@@ -83,7 +79,7 @@ tabs = st.tabs([
 ])
 
 # ---------------------------------------------------------
-# TAB 1: DIAGNOSA & REKAM MEDIS
+# TAB 1: DIAGNOSA & REKAM MEDIS PASIEN
 # ---------------------------------------------------------
 with tabs[0]:
     st.header("1. Data Pasien & Empat Pemeriksaan (Si Zhen)")
@@ -99,18 +95,17 @@ with tabs[0]:
     with col2:
         td = st.text_input("Tekanan Darah (S/D):", "120/80")
         nadi_bpm = st.number_input("Frekuensi Nadi (BPM):", value=75)
-        foto_lidah = st.file_uploader("Upload Foto Lidah Pasien (Opsional):", type=["jpg", "png", "jpeg"])
 
-    if st.button("🔮 Analisis Diagnosa & Formulasi TCM (AI)"):
-        if client is None:
-            st.error("Kunci Google belum terhubung. Harap masukkan Kunci Anda di sidebar sebelah kiri.")
+    if st.button("🔮 Analisis Diagnosa & Formulasi TCM (DeepSeek AI)"):
+        if not client:
+            st.error("Koneksi AI terputus. Harap periksa kembali kuncinya.")
         elif not nama or not keluhan_utama:
             st.warning("Harap isi Nama Pasien dan Keluhan Utama terlebih dahulu.")
         else:
-            with st.spinner("Gemini AI sedang menganalisis Sindrom, Titik Akupuntur, Food Terapi & Resep Herbal..."):
+            with st.spinner("DeepSeek AI sedang menganalisis Sindrom, Titik Akupuntur, Food Terapi & Resep Herbal..."):
                 try:
                     stok_list_str = ", ".join([f"{item['nama']} (Stok: {item['stok']}g, HPP: Rp{item['hpp']}/g)" for item in st.session_state.inventory_db])
-                    
+
                     prompt = f"""
                     Posisikan Anda sebagai Coach Healing Profesional dan Praktisi Pengobatan TCM Profesional.
                     Analisis data rekam medis pasien berikut:
@@ -128,30 +123,26 @@ with tabs[0]:
                     6. FORMULA HERBAL SESUAI STOK TERSEDIA (Pilih dari daftar stok herbal lokal di atas beserta takaran gramnya).
                     """
                     
-                    contents = [prompt]
-                    if foto_lidah is not None:
-                        contents.append(Image.open(foto_lidah))
-                    
-                    response = client.models.generate_content(
-                        model='gemini-1.5-flash',
-                        contents=contents
+                    response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "user", "content": prompt}]
                     )
-                    ai_result = response.text
+                    ai_result = response.choices[0].message.content
                     
                     st.session_state.current_patient = nama
                     st.session_state.patients_db.append({
                         "tanggal": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "nama": nama, "usia": usia, "keluhan": keluhan_utama, "diagnosa_ai": ai_result
                     })
-                    safe_save_json("database_pasien.json", st.session_state.patients_db)
+                    safe_save_json(DB_PATIENTS, st.session_state.patients_db)
                     
-                    st.success("Analisis AI Berhasil Disimpan!")
+                    st.success("✅ Analisis AI Berhasil Disimpan!")
                     st.text_area("Hasil Analisis Complete (TCM & Terapi):", ai_result, height=350)
                 except Exception as e:
                     st.error(f"Gagal memproses AI: {str(e)}")
 
 # ---------------------------------------------------------
-# TAB 2: STOK & KALKULASI MARKUP 250%
+# TAB 2: STOK & KALKULATOR MARKUP 250%
 # ---------------------------------------------------------
 with tabs[1]:
     st.header("2. Management Stok & Kalkulator Herbal (Markup 250%)")
@@ -180,7 +171,7 @@ with tabs[1]:
         st.session_state.selected_herbal_items = selected_items
 
 # ---------------------------------------------------------
-# TAB 3: KASIR & STRUK
+# TAB 3: KASIR & CETAK STRUK BLUETOOTH
 # ---------------------------------------------------------
 with tabs[2]:
     st.header("3. Kasir & Pembayaran Struk Thermal Bluetooth")
@@ -202,7 +193,7 @@ with tabs[2]:
                 for inv_item in st.session_state.inventory_db:
                     if inv_item['nama'] == s_item['nama']:
                         inv_item['stok'] -= s_item['qty']
-            safe_save_json("database_stok.json", st.session_state.inventory_db)
+            safe_save_json(DB_INVENTORY, st.session_state.inventory_db)
             
             trans_record = {
                 "tgl": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -212,8 +203,8 @@ with tabs[2]:
                 "total": total_transaksi
             }
             st.session_state.transactions_db.append(trans_record)
-            safe_save_json("database_transaksi.json", st.session_state.transactions_db)
-            st.success("Transaksi Berhasil Disimpan & Stok Berhasil Diperbarui!")
+            safe_save_json(DB_TRANSACTIONS, st.session_state.transactions_db)
+            st.success("✅ Transaksi Berhasil Disimpan & Stok Diperbarui!")
 
     with col_k2:
         st.subheader("Pratinjau Struk Thermal (58mm)")
@@ -266,12 +257,12 @@ with tabs[3]:
     st.header("4. Laporan Keuangan Standar Akuntansi (.txt)")
     
     if st.button("📈 Susun Laporan Keuangan Akuntansi"):
-        if client is None:
-            st.error("Kunci Google belum valid. Harap isi di sidebar terlebih dahulu.")
+        if not client:
+            st.error("Groq API Key belum terpasang.")
         elif not st.session_state.transactions_db:
             st.warning("Belum ada data transaksi tersimpan.")
         else:
-            with st.spinner("AI menyusun Laporan Jurnal & Laba Rugi..."):
+            with st.spinner("DeepSeek AI menyusun Laporan Jurnal & Laba Rugi..."):
                 try:
                     trans_summary = json.dumps(st.session_state.transactions_db, indent=2)
                     
@@ -287,11 +278,11 @@ with tabs[3]:
                     4. CATATAN MANAJEMEN KEUANGAN KLINIK.
                     """
                     
-                    response_acc = client.models.generate_content(
-                        model='gemini-1.5-flash',
-                        contents=[prompt_acc]
+                    response_acc = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "user", "content": prompt_acc}]
                     )
-                    report_acc_text = response_acc.text
+                    report_acc_text = response_acc.choices[0].message.content
                     
                     st.text_area("Pratinjau Laporan Keuangan (.txt):", report_acc_text, height=300)
                     
