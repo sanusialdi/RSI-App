@@ -8,37 +8,40 @@ import streamlit.components.v1 as components
 # Config Halaman
 st.set_page_config(page_title="RSI System - Coach Aldi", layout="wide")
 
-# API Key & Endpoint Auto-Active (OpenRouter - Free Unlimited)
-OPENROUTER_API_KEY = "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"
-
-def call_openrouter_ai(prompt_text):
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "meta-llama/llama-3.3-70b-instruct:free",
-        "messages": [{"role": "user", "content": prompt_text}]
-    }
-    try:
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
-        if response.status_code == 200:
-            res_json = response.json()
-            return res_json['choices'][0]['message']['content']
-        else:
-            # Fallback ke model DeepSeek gratisan
-            payload['model'] = 'deepseek/deepseek-r1:free'
-            res2 = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
-            if res2.status_code == 200:
-                return res2.json()['choices'][0]['message']['content']
-            else:
-                raise Exception(f"HTTP Error {response.status_code}: {response.text}")
-    except Exception as e:
-        raise Exception(f"Gagal koneksi AI: {str(e)}")
-
 # Sidebar Indicator
 st.sidebar.title("🔐 Status System")
-st.sidebar.success("✅ AI Engine Terhubung Otomatis!")
+st.sidebar.success("✅ Free AI Engine Active!")
+
+# Fungsi Pemanggilan AI Public Gateway (Bebas API Key)
+def call_public_ai(prompt_text):
+    # Gateway 1: Pollinations AI (Llama 3.3 / DeepSeek Gateway - Public No Key)
+    try:
+        url = "https://text.pollinations.ai/"
+        payload = {
+            "messages": [
+                {"role": "system", "content": "Anda adalah Coach Healing dan Praktisi Pengobatan TCM Profesional."},
+                {"role": "user", "content": prompt_text}
+            ],
+            "model": "searchgpt", # Menggunakan engine Llama-3/DeepSeek bawaan backend
+            "jsonMode": False
+        }
+        res = requests.post(url, json=payload, timeout=25)
+        if res.status_code == 200 and res.text.strip():
+            return res.text.strip()
+    except Exception:
+        pass
+
+    # Gateway 2: Fallback Direct Prompt GET
+    try:
+        formatted_prompt = f"System: Anda adalah Praktisi TCM Profesional.\nUser: {prompt_text}"
+        url_get = f"https://text.pollinations.ai/{requests.utils.quote(formatted_prompt)}"
+        res2 = requests.get(url_get, timeout=25)
+        if res2.status_code == 200 and res2.text.strip():
+            return res2.text.strip()
+    except Exception:
+        pass
+
+    raise Exception("Gagal terhubung ke AI Public Gateway. Harap coba beberapa saat lagi.")
 
 # Safe JSON Loader & Saver
 DB_PATIENTS = "database_pasien.json"
@@ -134,7 +137,7 @@ with tabs[0]:
                     - Daftar Stok Herbal Tersedia: {stok_list_str}
 
                     Berikan hasil analisis terstruktur berformat teks rapi (.txt) mencakup:
-                    1. DIAGNOSA SINDROM TCM (Diferensiation Zang-Fu, Ba Gang, Organ & Penyebab Utama).
+                    1. DIAGNOSA SINDROM TCM (Diferensiasi Zang-Fu, Ba Gang, Organ & Penyebab Utama).
                     2. REKOMENDASI TERAPI AKUPUNTUR & AKUPRESUR (Sebutkan kode titik misal ST36, SP6, LR3, lokasi posisi titik, dan indikasinya).
                     3. REKOMENDASI TITIK MOKSA (Jika diindikasikan, beserta alasannya).
                     4. RESEP FOOD TERAPI (Anjuran makanan & pantangan makanan sesuai sindrom).
@@ -142,7 +145,7 @@ with tabs[0]:
                     6. FORMULA HERBAL SESUAI STOK TERSEDIA (Pilih dari daftar stok herbal lokal di atas beserta takaran gramnya).
                     """
                     
-                    ai_result = call_openrouter_ai(prompt)
+                    ai_result = call_public_ai(prompt)
                     
                     st.session_state.current_patient = nama
                     st.session_state.patients_db.append({
@@ -291,7 +294,7 @@ with tabs[3]:
                     4. CATATAN MANAJEMEN KEUANGAN KLINIK.
                     """
                     
-                    report_acc_text = call_openrouter_ai(prompt_acc)
+                    report_acc_text = call_public_ai(prompt_acc)
                     
                     st.text_area("Pratinjau Laporan Keuangan (.txt):", report_acc_text, height=300)
                     
